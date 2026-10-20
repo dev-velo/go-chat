@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"go-chat/app/api"
 	"go-chat/app/config"
 	"go-chat/app/web"
@@ -9,7 +12,11 @@ import (
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	router := gin.Default()
 	api.RegisterRoutes(router)
 	web.RegisterRoutes(router)
