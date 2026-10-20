@@ -42,6 +42,7 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 	response, err := o.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Model:               o.model,
 		MaxCompletionTokens: openai.Int(maxTokens),
+		N:                   openai.Int(1), // pin to 1 answer
 		Messages: []openai.ChatCompletionMessageParamUnion{
 			openai.UserMessage(prompt),
 		},
@@ -50,13 +51,25 @@ func (o *OpenAI) Complete(ctx context.Context, prompt string) (string, error) {
 		return "", fmt.Errorf("openai chat completions: %w", err)
 	}
 
-	if len(response.Choices) == 0 {
+	return answerFromOpenAI(response)
+}
+
+// answerFromOpenAI reads the reply out of a response.
+// does filtering and refusal checks, and returns an error if the response is empty.
+func answerFromOpenAI(response *openai.ChatCompletion) (string, error) {
+	if response == nil || len(response.Choices) == 0 {
 		return "", errors.New("openai returned no choices")
 	}
-	answer := response.Choices[0].Message.Content
-	if answer == "" {
-		return "", fmt.Errorf("openai returned no text (finish reason %q)",
-			response.Choices[0].FinishReason)
+	choice := response.Choices[0] // pinned choices to 1 above
+
+	if refusal := strings.TrimSpace(choice.Message.Refusal); refusal != "" {
+		return "", fmt.Errorf("openai declined to answer: %s", refusal)
 	}
-	return answer, nil
+	if choice.FinishReason == "content_filter" {
+		return "", errors.New("openai filtered the response")
+	}
+	if choice.Message.Content == "" {
+		return "", fmt.Errorf("openai returned no text (finish reason %q)", choice.FinishReason)
+	}
+	return choice.Message.Content, nil
 }
