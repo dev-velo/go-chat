@@ -18,7 +18,7 @@ type Config struct {
 	// Port is the TCP port the HTTP server binds. Optional.
 	Port string
 
-	// GinMode is the gin runtime mode: debug, release, or test. Required.
+	// GinMode is the gin runtime mode: debug, release, or test. Optional.
 	GinMode string
 }
 
