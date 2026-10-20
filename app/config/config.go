@@ -38,6 +38,8 @@ type Config struct {
 	Port         string // Port is the TCP port the server listens on. Optional.
 	GinMode      string // GinMode is the gin framework mode. Optional.
 	StoreBackend string // StoreBackend is the persistence backend. Required.
+	S3BucketName string
+	S3BucketPath string
 	LLMProvider  string // LLMProvider is the model backend. Required.
 	LLMModel     string // LLMModel is the provider-specific model id. Required.
 	LLMAPIKey    string // LLMAPIKey is the provider-specific API key.
@@ -68,11 +70,16 @@ func Load() (Config, error) {
 		Port:         l.optional("PORT", "8080"),
 		GinMode:      l.optional("GIN_MODE", "release"),
 		StoreBackend: l.required("STORE_BACKEND"),
+		S3BucketName: l.optional("S3_BUCKET_NAME", ""),
+		S3BucketPath: l.optional("S3_BUCKET_PATH", ""),
 		LLMProvider:  l.required("LLM_PROVIDER"),
 		LLMModel:     l.required("LLM_MODEL"),
 		LLMAPIKey:    l.optional("LLM_API_KEY", ""),
 		SSMKeyName:   l.optional("SSM_KEY_NAME", ""),
 		SSMFetchKey:  fetchKey,
+	}
+	if cfg.StoreBackend == StoreS3 {
+		cfg.S3BucketName = l.required("S3_BUCKET_NAME")
 	}
 	if cfg.SSMFetchKey {
 		cfg.SSMKeyName = l.required("SSM_KEY_NAME")

@@ -10,7 +10,7 @@ import (
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
-		"PORT", "GIN_MODE", "STORE_BACKEND", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "SSM_FETCH_KEY", "SSM_KEY_NAME",
+		"PORT", "GIN_MODE", "STORE_BACKEND", "S3_BUCKET_NAME", "S3_BUCKET_PATH", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "SSM_FETCH_KEY", "SSM_KEY_NAME",
 	} {
 		t.Setenv(key, "")
 	}
@@ -173,6 +173,8 @@ func TestLoadKeepsLLMSettings(t *testing.T) {
 func TestLoadKeepsStoreBackend(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("STORE_BACKEND", StoreS3)
+	t.Setenv("S3_BUCKET_NAME", " test-bucket ")
+	t.Setenv("S3_BUCKET_PATH", " exchanges/ ")
 
 	cfg, err := Load()
 	if err != nil {
@@ -180,6 +182,17 @@ func TestLoadKeepsStoreBackend(t *testing.T) {
 	}
 	if cfg.StoreBackend != StoreS3 {
 		t.Errorf("StoreBackend = %q, want %q", cfg.StoreBackend, StoreS3)
+	}
+	if cfg.S3BucketName != "test-bucket" || cfg.S3BucketPath != "exchanges/" {
+		t.Fatal("S3 settings must be loaded and trimmed")
+	}
+}
+
+func TestLoadS3RequiresBucket(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("STORE_BACKEND", StoreS3)
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "S3_BUCKET_NAME") {
+		t.Fatal("S3 store must require a bucket name")
 	}
 }
 

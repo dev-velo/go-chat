@@ -60,7 +60,9 @@ func newStore(cfg config.Config) (store.Store, error) {
 	case config.StoreMemory:
 		return store.NewMemory(), nil
 	case config.StoreS3:
-		return nil, fmt.Errorf("STORE_BACKEND=%s is not implemented yet", config.StoreS3)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		return store.NewS3(ctx, cfg.S3BucketName, cfg.S3BucketPath)
 	default:
 		return nil, fmt.Errorf("unknown STORE_BACKEND %q (want %s or %s)",
 			cfg.StoreBackend, config.StoreMemory, config.StoreS3)
