@@ -9,6 +9,7 @@ package api
 import (
 	"net/http"
 
+	"go-chat/app/llm"
 	"go-chat/app/store"
 
 	"github.com/gin-gonic/gin"
@@ -21,11 +22,12 @@ const healthPath = "/healthz"
 // closures, so each one can live in its own file.
 type api struct {
 	exchanges store.Store
+	model     llm.Client
 }
 
 // RegisterRoutes mounts the API on router, backed by exchanges.
-func RegisterRoutes(router *gin.Engine, exchanges store.Store) {
-	a := &api{exchanges: exchanges}
+func RegisterRoutes(router *gin.Engine, exchanges store.Store, model llm.Client) {
+	a := &api{exchanges: exchanges, model: model}
 
 	router.GET(healthPath, wrap(a.health))
 	router.POST("/chat", wrap(a.chat))

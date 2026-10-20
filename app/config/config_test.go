@@ -9,12 +9,17 @@ import (
 // influence a test. t.Setenv restores the previous values when the test ends.
 func clearEnv(t *testing.T) {
 	t.Helper()
-	for _, key := range []string{"PORT", "GIN_MODE", "STORE_BACKEND"} {
+	for _, key := range []string{
+		"PORT", "GIN_MODE", "STORE_BACKEND", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY",
+	} {
 		t.Setenv(key, "")
 	}
-	// STORE_BACKEND is required, so every test that expects Load to succeed
-	// needs it set. Tests about its absence clear it again.
+	// Every test that expects Load to succeed needs the required variables
+	// set. Tests about their absence clear them again.
 	t.Setenv("STORE_BACKEND", StoreMemory)
+	t.Setenv("LLM_PROVIDER", ProviderFake)
+	t.Setenv("LLM_MODEL", "a-model")
+	t.Setenv("LLM_API_KEY", "sk-test-value")
 }
 
 func TestLoadAppliesDefaults(t *testing.T) {
@@ -42,6 +47,62 @@ func TestLoadRequiresStoreBackend(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "STORE_BACKEND") {
 		t.Errorf("error %q does not name the missing variable", err)
+	}
+}
+
+func TestLoadRequiresEachRequiredVar(t *testing.T) {
+	for _, key := range []string{"STORE_BACKEND", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY"} {
+		t.Run(key, func(t *testing.T) {
+			clearEnv(t)
+			t.Setenv(key, "")
+
+			_, err := Load()
+			if err == nil {
+				t.Fatalf("Load without %s must fail", key)
+			}
+			if !strings.Contains(err.Error(), key) {
+				t.Errorf("error %q does not name the missing variable", err)
+			}
+		})
+	}
+}
+
+func TestLoadReportsEveryMissingRequiredVar(t *testing.T) {
+	// One startup attempt should reveal the whole list, not one per restart.
+	clearEnv(t)
+	required := []string{"STORE_BACKEND", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY"}
+	for _, key := range required {
+		t.Setenv(key, "")
+	}
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load must fail when the required variables are missing")
+	}
+	for _, want := range required {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name %s", err, want)
+		}
+	}
+}
+
+func TestLoadKeepsLLMSettings(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("LLM_PROVIDER", ProviderAnthropic)
+	t.Setenv("LLM_MODEL", "claude-opus-5")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.LLMProvider != ProviderAnthropic {
+		t.Errorf("LLMProvider = %q", cfg.LLMProvider)
+	}
+	if cfg.LLMModel != "claude-opus-5" {
+		t.Errorf("LLMModel = %q", cfg.LLMModel)
+	}
+	if cfg.LLMAPIKey != "sk-test-value" {
+		t.Errorf("LLMAPIKey was not read from the environment")
 	}
 }
 

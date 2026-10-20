@@ -14,11 +14,22 @@ import (
 )
 
 // Backends accepted by STORE_BACKEND.
+// options:
+// in-memory persistence
+// s3 persistence
 const (
-	// StoreMemory keeps exchanges in process memory
 	StoreMemory = "memory"
-	// StoreS3 persists exchanges to S3.
-	StoreS3 = "s3"
+	StoreS3     = "s3"
+)
+
+// Providers accepted by LLM_PROVIDER.
+// options:
+// gpt
+// claude
+const (
+	ProviderFake      = "fake"
+	ProviderAnthropic = "anthropic"
+	ProviderOpenAI    = "openai"
 )
 
 // Config is the resolved runtime configuration.
@@ -26,6 +37,9 @@ type Config struct {
 	Port         string // Port is the TCP port the server listens on. Optional.
 	GinMode      string // GinMode is the gin framework mode. Optional.
 	StoreBackend string // StoreBackend is the persistence backend. Required.
+	LLMProvider  string // LLMProvider is the model backend. Required.
+	LLMModel     string // LLMModel is the provider-specific model id. Required.
+	LLMAPIKey    string // LLMAPIKey is the provider-specific API key. Required.
 }
 
 // Error reports the required variables that were missing. All listed together
@@ -47,6 +61,9 @@ func Load() (Config, error) {
 		Port:         l.optional("PORT", "8080"),
 		GinMode:      l.optional("GIN_MODE", "release"),
 		StoreBackend: l.required("STORE_BACKEND"),
+		LLMProvider:  l.required("LLM_PROVIDER"),
+		LLMModel:     l.required("LLM_MODEL"),
+		LLMAPIKey:    l.required("LLM_API_KEY"),
 	}
 	if len(l.missing) > 0 {
 		return Config{}, &Error{Missing: l.missing}

@@ -50,10 +50,14 @@ func (a *api) chat(c *gin.Context) error {
 		return tooLarge("prompt is too long")
 	}
 
+	answer, err := a.model.Complete(c.Request.Context(), prompt)
+	if err != nil {
+		return fmt.Errorf("completing prompt: %w", err)
+	}
+
 	exchange := store.Exchange{
-		Prompt: prompt,
-		// TODO: replace with a real model response once a provider is wired.
-		Response:  "[no model connected yet] You asked: " + prompt,
+		Prompt:    prompt,
+		Response:  answer,
 		Timestamp: time.Now().UTC(),
 	}
 	if err := a.exchanges.Save(c.Request.Context(), exchange); err != nil {
