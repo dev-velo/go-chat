@@ -66,7 +66,7 @@ func newLLM(cfg config.Config) (llm.Client, error) {
 	case config.ProviderAnthropic:
 		return nil, fmt.Errorf("LLM_PROVIDER=%s is not implemented yet", config.ProviderAnthropic)
 	case config.ProviderOpenAI:
-		return nil, fmt.Errorf("LLM_PROVIDER=%s is not implemented yet", config.ProviderOpenAI)
+		return llm.NewOpenAI(cfg.LLMAPIKey, cfg.LLMModel)
 	default:
 		return nil, fmt.Errorf("unknown LLM_PROVIDER %q (want %s, %s, or %s)",
 			cfg.LLMProvider, config.ProviderFake, config.ProviderAnthropic, config.ProviderOpenAI)
