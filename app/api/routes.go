@@ -14,6 +14,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// healthPath is excluded from successful access logging.
+const healthPath = "/healthz"
+
 // api holds what the handlers need. Handlers are methods on it rather than
 // closures, so each one can live in its own file.
 type api struct {
@@ -24,7 +27,7 @@ type api struct {
 func RegisterRoutes(router *gin.Engine, exchanges store.Store) {
 	a := &api{exchanges: exchanges}
 
-	router.GET("/healthz", wrap(a.health))
+	router.GET(healthPath, wrap(a.health))
 	router.POST("/chat", wrap(a.chat))
 	router.GET("/history", wrap(a.history))
 }

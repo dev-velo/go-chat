@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -34,10 +33,7 @@ func tooLarge(message string) error {
 
 // wrap adapts a handler to gin, turning its error into a response.
 //
-// Caller errors return their own status and are not logged: they are routine,
-// and alarming on them would mean paging someone every time a bot sends junk.
-// Everything else is ours, so it is logged at ERROR with the detail and the
-// caller is told nothing specific.
+// Caller errors return their own status and are not logged. Server errors are logged and return a generic 500 body.
 func wrap(h handler) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		err := h(c)
@@ -51,11 +47,7 @@ func wrap(h handler) gin.HandlerFunc {
 			return
 		}
 
-		slog.Error("request failed",
-			"method", c.Request.Method,
-			"path", c.FullPath(),
-			"error", err,
-		)
+		_ = c.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "something went wrong"})
 	}
 }

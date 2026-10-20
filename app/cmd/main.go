@@ -28,7 +28,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(api.Logging(), api.Recovery())
 	api.RegisterRoutes(router, exchanges)
 	web.RegisterRoutes(router)
 
