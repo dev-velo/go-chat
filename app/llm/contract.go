@@ -11,6 +11,7 @@ import (
 
 var ErrNoAPIKey = errors.New("provider needs an API key")
 var ErrNoModel = errors.New("provider needs LLM_MODEL set")
+var maxTokens = 4096 // maxTokens caps one answer.
 
 // Client turns a prompt into an answer.
 // complete returns an answer from a prompt or err
