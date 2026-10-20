@@ -17,6 +17,7 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	gin.SetMode(cfg.GinMode)
 	router := gin.Default()
 	api.RegisterRoutes(router)
 	web.RegisterRoutes(router)

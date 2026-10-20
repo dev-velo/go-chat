@@ -39,7 +39,7 @@ func Load() (Config, error) {
 
 	cfg := Config{
 		Port:    l.optional("PORT", "8080"),
-		GinMode: l.required("GIN_MODE"),
+		GinMode: l.optional("GIN_MODE", "release"),
 	}
 	if len(l.missing) > 0 {
 		return Config{}, &Error{Missing: l.missing}
