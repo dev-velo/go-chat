@@ -1,0 +1,16 @@
+# Terraform state can contain resource metadata and secret values in plain
+# text. It is never committed.
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+*.tfvars
+!*.tfvars.example
+
+# Per-environment configuration: names the account, role and state bucket.
+env/*.env
+!env/*.env.example
+
+# Saved plans are binary and can contain resource attribute values.
+.plans/
