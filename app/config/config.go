@@ -13,13 +13,19 @@ import (
 	"strings"
 )
 
+// Backends accepted by STORE_BACKEND.
+const (
+	// StoreMemory keeps exchanges in process memory
+	StoreMemory = "memory"
+	// StoreS3 persists exchanges to S3.
+	StoreS3 = "s3"
+)
+
 // Config is the resolved runtime configuration.
 type Config struct {
-	// Port is the TCP port the HTTP server binds. Optional.
-	Port string
-
-	// GinMode is the gin runtime mode: debug, release, or test. Optional.
-	GinMode string
+	Port         string // Port is the TCP port the server listens on. Optional.
+	GinMode      string // GinMode is the gin framework mode. Optional.
+	StoreBackend string // StoreBackend is the persistence backend. Required.
 }
 
 // Error reports the required variables that were missing. All listed together
@@ -38,8 +44,9 @@ func Load() (Config, error) {
 	var l loader
 
 	cfg := Config{
-		Port:    l.optional("PORT", "8080"),
-		GinMode: l.optional("GIN_MODE", "release"),
+		Port:         l.optional("PORT", "8080"),
+		GinMode:      l.optional("GIN_MODE", "release"),
+		StoreBackend: l.required("STORE_BACKEND"),
 	}
 	if len(l.missing) > 0 {
 		return Config{}, &Error{Missing: l.missing}

@@ -9,9 +9,12 @@ import (
 // influence a test. t.Setenv restores the previous values when the test ends.
 func clearEnv(t *testing.T) {
 	t.Helper()
-	for _, key := range []string{"PORT", "GIN_MODE"} {
+	for _, key := range []string{"PORT", "GIN_MODE", "STORE_BACKEND"} {
 		t.Setenv(key, "")
 	}
+	// STORE_BACKEND is required, so every test that expects Load to succeed
+	// needs it set. Tests about its absence clear it again.
+	t.Setenv("STORE_BACKEND", StoreMemory)
 }
 
 func TestLoadAppliesDefaults(t *testing.T) {
@@ -26,6 +29,32 @@ func TestLoadAppliesDefaults(t *testing.T) {
 	}
 	if cfg.GinMode != "release" {
 		t.Errorf("GinMode = %q, want %q", cfg.GinMode, "release")
+	}
+}
+
+func TestLoadRequiresStoreBackend(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("STORE_BACKEND", "")
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load without STORE_BACKEND must fail")
+	}
+	if !strings.Contains(err.Error(), "STORE_BACKEND") {
+		t.Errorf("error %q does not name the missing variable", err)
+	}
+}
+
+func TestLoadKeepsStoreBackend(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("STORE_BACKEND", StoreS3)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.StoreBackend != StoreS3 {
+		t.Errorf("StoreBackend = %q, want %q", cfg.StoreBackend, StoreS3)
 	}
 }
 
