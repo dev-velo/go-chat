@@ -2,7 +2,7 @@
 package store
 
 import (
-	"sync"
+	"context"
 	"time"
 )
 
@@ -14,38 +14,11 @@ type Exchange struct {
 	Timestamp time.Time `json:"timestamp"`
 }
 
-// Memory keeps exchanges in process memory. It is safe for concurrent use.
-type Memory struct {
-	mu        sync.RWMutex
-	exchanges []Exchange // oldest first
-}
-
-// NewMemory returns an empty store.
-func NewMemory() *Memory {
-	return &Memory{}
-}
-
-// Save appends an exchange.
-func (m *Memory) Save(e Exchange) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.exchanges = append(m.exchanges, e)
-}
-
-// List returns up to limit exchanges, newest first. A limit of 0 means all of
-// them. The result is a copy, so callers cannot mutate the store.
-func (m *Memory) List(limit int) []Exchange {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	n := len(m.exchanges)
-	if limit > 0 && limit < n {
-		n = limit
-	}
-
-	out := make([]Exchange, 0, n)
-	for i := len(m.exchanges) - 1; i >= 0 && len(out) < n; i-- {
-		out = append(out, m.exchanges[i])
-	}
-	return out
+// Store persists exchanges and reads them back.
+type Store interface {
+	// Save persists one exchange.
+	Save(ctx context.Context, e Exchange) error
+	// List returns up to limit exchanges, newest first. A limit of 0 means
+	// no limit. Implementations return an empty slice, never nil.
+	List(ctx context.Context, limit int) ([]Exchange, error)
 }

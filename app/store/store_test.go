@@ -1,84 +1,47 @@
 package store
 
 import (
-	"sync"
+	"encoding/json"
 	"testing"
 	"time"
 )
 
-func TestListReturnsNewestFirst(t *testing.T) {
-	m := NewMemory()
-	base := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
-	for i, p := range []string{"first", "second", "third"} {
-		m.Save(Exchange{Prompt: p, Timestamp: base.Add(time.Duration(i) * time.Second)})
+// TestExchangeJSONContract pins the wire format the frontend reads. The page
+// is off-limits, so these three field names and the timestamp format cannot
+// be changed here -- a rename would render blank history rows rather than
+// failing anything else in this repo.
+func TestExchangeJSONContract(t *testing.T) {
+	e := Exchange{
+		Prompt:    "a question",
+		Response:  "an answer",
+		Timestamp: time.Date(2026, 10, 19, 12, 30, 0, 0, time.UTC),
 	}
 
-	got := m.List(0)
-	want := []string{"third", "second", "first"}
-	if len(got) != len(want) {
-		t.Fatalf("got %d exchanges, want %d", len(got), len(want))
-	}
-	for i, p := range want {
-		if got[i].Prompt != p {
-			t.Errorf("position %d = %q, want %q", i, got[i].Prompt, p)
-		}
-	}
-}
-
-func TestListLimitKeepsTheNewest(t *testing.T) {
-	m := NewMemory()
-	base := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
-	for i := range 5 {
-		m.Save(Exchange{Prompt: "p", Timestamp: base.Add(time.Duration(i) * time.Second)})
+	body, err := json.Marshal(e)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
 	}
 
-	got := m.List(2)
-	if len(got) != 2 {
-		t.Fatalf("got %d exchanges, want 2", len(got))
-	}
-	if !got[0].Timestamp.Equal(base.Add(4 * time.Second)) {
-		t.Errorf("limit trimmed the wrong end: newest = %v", got[0].Timestamp)
+	const want = `{"prompt":"a question","response":"an answer","timestamp":"2026-10-19T12:30:00Z"}`
+	if got := string(body); got != want {
+		t.Errorf("JSON contract changed:\n got %s\nwant %s", got, want)
 	}
 }
 
-func TestListLimitLargerThanContents(t *testing.T) {
-	m := NewMemory()
-	m.Save(Exchange{Prompt: "only"})
-
-	if got := m.List(10); len(got) != 1 {
-		t.Errorf("got %d exchanges, want 1", len(got))
+// TestExchangeTimestampParsesInBrowsers guards the format the page passes to
+// new Date(): RFC 3339, which is what encoding/json emits for a time.Time.
+func TestExchangeTimestampParsesInBrowsers(t *testing.T) {
+	var out struct {
+		Timestamp string `json:"timestamp"`
 	}
-}
-
-func TestListEmpty(t *testing.T) {
-	if got := NewMemory().List(0); len(got) != 0 {
-		t.Errorf("got %d exchanges from an empty store", len(got))
+	body, err := json.Marshal(Exchange{Timestamp: time.Now().UTC()})
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
 	}
-}
-
-func TestListReturnsACopy(t *testing.T) {
-	m := NewMemory()
-	m.Save(Exchange{Prompt: "original"})
-
-	m.List(0)[0].Prompt = "mutated"
-
-	if got := m.List(0); got[0].Prompt != "original" {
-		t.Errorf("caller mutated the store: %q", got[0].Prompt)
+	if err := json.Unmarshal(body, &out); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
 	}
-}
-
-func TestConcurrentSaveAndList(t *testing.T) {
-	// Run with -race to be meaningful.
-	m := NewMemory()
-	var wg sync.WaitGroup
-	for i := range 50 {
-		wg.Add(2)
-		go func() { defer wg.Done(); m.Save(Exchange{Prompt: "p"}) }()
-		go func() { defer wg.Done(); _ = m.List(i % 5) }()
-	}
-	wg.Wait()
-
-	if got := m.List(0); len(got) != 50 {
-		t.Errorf("got %d exchanges, want 50", len(got))
+	if _, err := time.Parse(time.RFC3339, out.Timestamp); err != nil {
+		t.Errorf("timestamp %q is not RFC 3339: %v", out.Timestamp, err)
 	}
 }
