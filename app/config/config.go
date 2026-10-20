@@ -10,6 +10,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -39,7 +40,9 @@ type Config struct {
 	StoreBackend string // StoreBackend is the persistence backend. Required.
 	LLMProvider  string // LLMProvider is the model backend. Required.
 	LLMModel     string // LLMModel is the provider-specific model id. Required.
-	LLMAPIKey    string // LLMAPIKey is the provider-specific API key. Required.
+	LLMAPIKey    string // LLMAPIKey is the provider-specific API key.
+	SSMKeyName   string // Parameter name used when SSM fetching is enabled.
+	SSMFetchKey  bool   // SSMFetchKey indicates whether to fetch the LLM API key from AWS SSM.
 }
 
 // Error reports the required variables that were missing. All listed together
@@ -56,6 +59,10 @@ func (e *Error) Error() string {
 // caller must exit rather than start the server.
 func Load() (Config, error) {
 	var l loader
+	fetchKey, err := strconv.ParseBool(l.optional("SSM_FETCH_KEY", "false"))
+	if err != nil {
+		return Config{}, fmt.Errorf("SSM_FETCH_KEY must be a boolean")
+	}
 
 	cfg := Config{
 		Port:         l.optional("PORT", "8080"),
@@ -63,7 +70,15 @@ func Load() (Config, error) {
 		StoreBackend: l.required("STORE_BACKEND"),
 		LLMProvider:  l.required("LLM_PROVIDER"),
 		LLMModel:     l.required("LLM_MODEL"),
-		LLMAPIKey:    l.required("LLM_API_KEY"),
+		LLMAPIKey:    l.optional("LLM_API_KEY", ""),
+		SSMKeyName:   l.optional("SSM_KEY_NAME", ""),
+		SSMFetchKey:  fetchKey,
+	}
+	if cfg.SSMFetchKey {
+		cfg.SSMKeyName = l.required("SSM_KEY_NAME")
+		cfg.LLMAPIKey = ""
+	} else if cfg.LLMAPIKey == "" {
+		l.missing = append(l.missing, "LLM_API_KEY")
 	}
 	if len(l.missing) > 0 {
 		return Config{}, &Error{Missing: l.missing}

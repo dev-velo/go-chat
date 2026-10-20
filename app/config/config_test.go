@@ -10,16 +10,80 @@ import (
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
-		"PORT", "GIN_MODE", "STORE_BACKEND", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY",
+		"PORT", "GIN_MODE", "STORE_BACKEND", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "SSM_FETCH_KEY", "SSM_KEY_NAME",
 	} {
 		t.Setenv(key, "")
 	}
+
 	// Every test that expects Load to succeed needs the required variables
 	// set. Tests about their absence clear them again.
 	t.Setenv("STORE_BACKEND", StoreMemory)
 	t.Setenv("LLM_PROVIDER", ProviderFake)
 	t.Setenv("LLM_MODEL", "a-model")
 	t.Setenv("LLM_API_KEY", "sk-test-value")
+}
+
+func TestLoadAcceptsSSMParameter(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("LLM_API_KEY", "")
+	t.Setenv("SSM_FETCH_KEY", " true ")
+	t.Setenv("SSM_KEY_NAME", " /go-chat/dev/llm-api-key ")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.SSMFetchKey || cfg.LLMAPIKey != "" || cfg.SSMKeyName != "/go-chat/dev/llm-api-key" {
+		t.Fatal("expected only the trimmed SSM parameter name")
+	}
+}
+
+func TestLoadSSMOverridesDirectKey(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SSM_FETCH_KEY", "true")
+	t.Setenv("SSM_KEY_NAME", "/myapp/llm_api_key")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.LLMAPIKey != "" || !cfg.SSMFetchKey {
+		t.Fatal("SSM must replace the direct key when enabled")
+	}
+}
+
+func TestLoadSSMDisabledUsesDirectKey(t *testing.T) {
+	for _, flag := range []string{"", "false"} {
+		clearEnv(t)
+		t.Setenv("SSM_FETCH_KEY", flag)
+		t.Setenv("SSM_KEY_NAME", "/myapp/llm_api_key")
+		cfg, err := Load()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.SSMFetchKey || cfg.LLMAPIKey != "sk-test-value" {
+			t.Fatal("disabled SSM must use the direct key")
+		}
+		t.Setenv("LLM_API_KEY", "")
+		if _, err := Load(); err == nil {
+			t.Fatal("disabled SSM must require a direct key")
+		}
+	}
+}
+
+func TestLoadSSMRequiresParameterName(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SSM_FETCH_KEY", "true")
+	t.Setenv("SSM_KEY_NAME", " \t ")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "SSM_KEY_NAME") {
+		t.Fatal("enabled SSM must require a parameter name")
+	}
+}
+
+func TestLoadRejectsInvalidSSMFlag(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("SSM_FETCH_KEY", "invalid")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "SSM_FETCH_KEY") {
+		t.Fatal("invalid SSM flag must fail")
+	}
 }
 
 func TestLoadAppliesDefaults(t *testing.T) {
