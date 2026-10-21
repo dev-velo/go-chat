@@ -14,3 +14,6 @@ env/*.env
 
 # Saved plans are binary and can contain resource attribute values.
 .plans/
+
+# Ignore terraform.tfvars
+terraform.tfvars
