@@ -79,7 +79,7 @@ variable "llm_api_key_kms_key_arn" {
 }
 
 variable "create_app_auth_ssm_parameters" {
-  description = "Generate Basic Auth credentials and create their SecureString parameters. False uses existing parameters. Generated secrets enter state and saved plans."
+  description = "Generate sign-in credentials and create their SecureString parameters. False uses existing parameters. Generated secrets enter state and saved plans."
   type        = bool
   default     = true
   nullable    = false
@@ -106,7 +106,7 @@ variable "app_pass_ssm_name" {
 }
 
 variable "app_auth_kms_key_arn" {
-  description = "Customer-managed KMS key for both Basic Auth parameters. Null uses the AWS-managed SSM key."
+  description = "Customer-managed KMS key for both sign-in parameters. Null uses the AWS-managed SSM key."
   type        = string
   default     = null
 }

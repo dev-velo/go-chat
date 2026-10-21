@@ -31,7 +31,7 @@ resource "aws_ssm_parameter" "app_auth" {
   for_each = var.create_app_auth_ssm_parameters ? local.app_auth_ssm_names : {}
 
   name        = each.value
-  description = "Basic Auth ${each.key} credential for ${local.name}"
+  description = "Sign-in ${each.key} credential for ${local.name}"
   type        = "SecureString"
   key_id      = var.app_auth_kms_key_arn
   value       = each.key == "user" ? random_password.app_user[0].result : random_password.app_pass[0].result
