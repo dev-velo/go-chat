@@ -39,6 +39,22 @@ AWS uses the SDK's default credential chain. S3 requires prefix-scoped
 `GetObject`, `PutObject`, and bucket-level `ListBucket`; SSM requires
 `GetParameter` and, for customer-managed keys, appropriate KMS permissions.
 
+## Docker
+
+From the repository root:
+
+```sh
+docker build -t go-chat ./app
+docker run --rm --read-only --cap-drop=ALL --security-opt=no-new-privileges \
+  -p 127.0.0.1:8080:8080 --env-file app/.env.local go-chat
+```
+
+Open http://localhost:8080. The env file must use Docker's `KEY=value` syntax
+(no `export` or shell quoting). Use `STORE_BACKEND=memory` for local runs.
+The scratch image contains only the static binary and HTTPS CA certificates,
+runs as UID/GID 65532, and needs no writable filesystem. It has no shell.
+Use a TLS-terminating proxy when exposing it beyond localhost.
+
 ## Lambda
 
 The deployment script cross-compiles Linux ARM64 `bootstrap` and zips it.
