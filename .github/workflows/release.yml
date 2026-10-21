@@ -1,0 +1,78 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+
+      - run: go test ./...
+        working-directory: app
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Full history so the generated notes can diff against the previous tag.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+
+      # The same flags scripts/run.sh uses, so the released zip matches what a
+      # local deploy would have built.
+      - name: Build the Lambda package
+        working-directory: app
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          go build -trimpath -ldflags="-s -w" -o bootstrap ./cmd
+          zip -q -j -FS "$GITHUB_WORKSPACE/dist/bootstrap.zip" bootstrap
+          rm bootstrap
+
+      - name: Build the standalone binaries
+        working-directory: app
+        env:
+          CGO_ENABLED: "0"
+          VERSION: ${{ github.ref_name }}
+        run: |
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"
+            arch="${target#*/}"
+            staging="$(mktemp -d)"
+            GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags="-s -w" -o "$staging/go-chat" ./cmd
+            cp ../LICENSE ../README.md "$staging/"
+            tar -czf "$GITHUB_WORKSPACE/dist/go-chat_${VERSION}_${os}_${arch}.tar.gz" \
+              -C "$staging" .
+            rm -rf "$staging"
+          done
+
+      - name: Checksum every artifact
+        working-directory: dist
+        run: sha256sum -- * > checksums.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
