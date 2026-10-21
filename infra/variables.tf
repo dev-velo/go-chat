@@ -38,7 +38,7 @@ variable "exchange_retention_days" {
 
 variable "lambda_package" {
   description = <<-EOT
-    Path to the zipped Lambda package, built by scripts/terraform.sh before
+    Path to the zipped Lambda package, built by scripts/run.sh before
     apply. Not built by Terraform: a plan should not require a Go toolchain,
     and the artifact that was reviewed should be the one that ships.
   EOT
