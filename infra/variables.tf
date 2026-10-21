@@ -122,3 +122,14 @@ variable "llm_model" {
   type        = string
   default     = "gpt-4o-mini"
 }
+
+variable "alarm_email_addresses" {
+  description = "Addresses to notify when an alarm fires. Each is sent a confirmation mail and receives nothing until it is accepted. Empty leaves the alarms visible in the console only."
+  type        = list(string)
+  default     = []
+
+  validation {
+    condition     = alltrue([for address in var.alarm_email_addresses : can(regex("^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$", address))])
+    error_message = "alarm_email_addresses must all be email addresses."
+  }
+}
