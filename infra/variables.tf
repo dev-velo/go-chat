@@ -50,7 +50,7 @@ variable "lambda_package" {
 variable "create_llm_api_key_ssm_parameter" {
   description = "Create and manage the API key parameter. False uses an existing parameter without reading or changing its value."
   type        = bool
-  default     = false
+  default     = true
   nullable    = false
 }
 

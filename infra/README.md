@@ -14,21 +14,26 @@ defaults: project `go-chat`, environment `dev`, provider `openai`, model
 
 ### LLM API key
 
-Use an existing SecureString parameter in the deployment account and region:
+Terraform creates a SecureString parameter at
+`/<project>/<environment>/llm-api-key` by default. Set these in your ignored local
+`terraform.tfvars`:
 
 ```hcl
-llm_api_key_ssm_name = "/shared/openai/api-key"
+llm_provider = "openai"
+llm_model    = "gpt-4o-mini"
+llm_api_key  = "YOUR_OPENAI_API_KEY"
 ```
 
-Or create one at `/<project>/<environment>/llm-api-key`:
+Use an API key and model ID from the selected provider (`openai` or `anthropic`).
+The key can also be supplied securely through `TF_VAR_llm_api_key`.
+
+To reuse an existing SecureString parameter in the deployment account and region
+instead of creating one:
 
 ```hcl
-create_llm_api_key_ssm_parameter = true
+create_llm_api_key_ssm_parameter = false
+llm_api_key_ssm_name             = "/shared/openai/api-key"
 ```
-
-Supply `TF_VAR_llm_api_key` securely, or set `llm_api_key` in your ignored local
-tfvars. The value alone does not enable creation. No tfvars file is needed if
-the default parameter already exists and all other defaults are suitable.
 
 ### Login credentials
 

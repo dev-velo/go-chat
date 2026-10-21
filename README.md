@@ -26,9 +26,7 @@ your deployment role.
 ```hcl
 llm_provider = "openai"
 llm_model    = "gpt-4o-mini"
-
-create_llm_api_key_ssm_parameter = true
-llm_api_key                      = "YOUR_OPENAI_API_KEY"
+llm_api_key  = "YOUR_OPENAI_API_KEY"
 ```
 
 Use an API key and model ID from the selected provider: `openai` needs an OpenAI
