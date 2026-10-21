@@ -1,0 +1,23 @@
+# Called by docker.yml and release.yml so the gate is defined once.
+name: test
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # setup-go caches the module and build caches by default, keyed on go.sum.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
+
+      - run: go test ./...
+        working-directory: app
