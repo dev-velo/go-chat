@@ -1,0 +1,88 @@
+# Infrastructure
+
+## Configuration
+
+Edit region, deployment role, and optional state bucket in `../scripts/run.sh`.
+The script exports provider inputs and configures backend role assumption.
+Initial AWS credentials must be able to assume the role; the role must have
+deployment permissions and, for S3 state, access to the state bucket.
+Keep region and role out of tfvars to avoid overriding the script settings.
+
+Terraform automatically loads `terraform.tfvars`. All app settings have
+defaults: project `go-chat`, environment `dev`, provider `openai`, model
+`gpt-4o-mini`, and generated Basic Auth credentials.
+
+### LLM API key
+
+Use an existing SecureString parameter in the deployment account and region:
+
+```hcl
+llm_api_key_ssm_name = "/shared/openai/api-key"
+```
+
+Or create one at `/<project>/<environment>/llm-api-key`:
+
+```hcl
+create_llm_api_key_ssm_parameter = true
+```
+
+Supply `TF_VAR_llm_api_key` securely, or set `llm_api_key` in your ignored local
+tfvars. The value alone does not enable creation. No tfvars file is needed if
+the default parameter already exists and all other defaults are suitable.
+
+### Login credentials
+
+By default Terraform generates username/password SecureString parameters at
+`/<project>/<environment>/app-user-name` and `.../app-user-pass`.
+The outputs `app_user_name` and `app_user_pass` are sensitive:
+
+```sh
+just tf output dev -raw app_user_name
+just tf output dev -raw app_user_pass
+just tf output dev app_url
+```
+
+`-raw` prints secrets in plaintext; avoid shared terminals and CI logs.
+For existing credentials, set `create_app_auth_ssm_parameters=false`,
+`app_user_ssm_name`, and `app_pass_ssm_name`. Credential-value outputs are null
+in that mode; retrieve existing credentials through your authorized SSM workflow.
+Lambda receives parameter names, not secret environment values.
+
+Set `llm_api_key_kms_key_arn` or `app_auth_kms_key_arn` for customer-managed keys.
+Their key policies must permit the execution role; parameter creation also
+requires deployment-role encryption permissions.
+
+## Commands and state
+
+```sh
+just tf plan
+just tf apply
+just tf output
+just tf destroy
+```
+
+Commands default to `dev`; use `just tf plan staging` for another environment.
+Other commands: `build`, `fmt`, `validate`, `init`. Apply requires a saved plan.
+Destroy retains Terraform's confirmation; CI can explicitly pass
+`just tf destroy dev -auto-approve`.
+
+`run.sh` holds settings; `entrypoint.sh` builds the Lambda ZIP and runs Terraform.
+Terraform uploads `app/build/bootstrap.zip` directly to Lambda, not the chat
+bucket. Preserve the ZIP and saved plan between separate CI plan/apply jobs.
+The app still needs a Lambda handler adapter before deployment can serve traffic.
+
+An empty state bucket selects local state at `.state/<environment>/terraform.tfstate`;
+otherwise state uses S3. The script generates an ignored `backend.generated.tf`.
+Backend metadata and plans are separated by backend type and environment.
+Changing backend settings does not migrate state; migrate deliberately before
+switching an existing deployment.
+
+**Protect state and saved plans: they contain generated credentials and managed
+API keys, even when marked sensitive.** Do not commit them. Local state needs
+secure backups. Reusing existing SSM parameters avoids putting their values in
+Terraform state.
+
+Destroy deletes chat history (`force_destroy=true`) and managed SSM parameters.
+Turning creation flags off also plans deletion of managed parameters; remove
+them from Terraform management first if retaining them. Existing parameters
+referenced by name are not managed or deleted.
