@@ -9,7 +9,9 @@ test:
     cd app && go test ./...
 
 install:
-    brew install go
+    brew install go just tfenv
+    tfenv install
+    tfenv use
     cd app && go mod download
     cd app && go version
 

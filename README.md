@@ -86,7 +86,10 @@ flowchart TB
 
 - AWS credentials that can assume a deployment role with permission to manage
   Lambda, S3, SSM, IAM, CloudWatch, and SNS
-- Terraform >= 1.9, Go 1.27, [`just`](https://just.systems/), `zip`
+- Go 1.27, [`just`](https://just.systems/), `tfenv`, `zip`. On macOS,
+  `just install` installs them and the pinned Terraform:
+  `.terraform-version` holds 1.14.9, which `tfenv` resolves from anywhere
+  in the repo.
 - An OpenAI or Anthropic API key
 - Optional: an existing S3 bucket for remote state (local state otherwise)
 
