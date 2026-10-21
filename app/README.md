@@ -43,6 +43,6 @@ AWS uses the SDK's default credential chain. S3 requires prefix-scoped
 The deployment script cross-compiles Linux ARM64 `bootstrap` and zips it.
 In Lambda, the app uses the Go runtime and Gin's API Gateway v2 adapter to handle
 Function URL requests. Locally, it runs the normal HTTP server. Responses are
-buffered, not streamed. The Anthropic provider is still unimplemented.
+buffered, not streamed. Both OpenAI and Anthropic providers are supported.
 
 Run application tests with `cd app && go test ./...`.
