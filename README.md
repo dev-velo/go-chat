@@ -1,6 +1,6 @@
 # Go Chat
 
-Go chat POC with browser-native username/password authentication.
+Go chat POC with username/password authentication, held by a signed session cookie.
 
 ## Run locally
 
@@ -12,7 +12,8 @@ Keep `STORE_BACKEND=memory`.
 just run
 ```
 
-Open http://localhost:8080 and enter your configured credentials.
+Open http://localhost:8080. You are sent to a sign-in page; enter your
+configured credentials. `/logout` ends the session.
 
 ## Deploy to AWS
 

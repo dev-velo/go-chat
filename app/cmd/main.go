@@ -61,7 +61,9 @@ func main() {
 
 func newRouter(exchanges store.Store, model llm.Client, username, password string) *gin.Engine {
 	router := gin.New()
-	router.Use(api.Logging(), api.Recovery(), api.BasicAuth(username, password))
+	auth := api.NewAuth(username, password)
+	router.Use(api.Logging(), api.Recovery(), auth.Middleware())
+	auth.RegisterAuthRoutes(router)
 	api.RegisterRoutes(router, exchanges, model)
 	web.RegisterRoutes(router)
 	return router

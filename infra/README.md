@@ -10,7 +10,7 @@ Keep region and role out of tfvars to avoid overriding the script settings.
 
 Terraform automatically loads `terraform.tfvars`. All app settings have
 defaults: project `go-chat`, environment `dev`, provider `openai`, model
-`gpt-4o-mini`, and generated Basic Auth credentials.
+`gpt-4o-mini`, and generated sign-in credentials.
 
 ### LLM API key
 

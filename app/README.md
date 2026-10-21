@@ -22,7 +22,8 @@ direct environment secrets. Missing/empty values or retrieval errors prevent
 startup. Secrets are cached for the process lifetime; restart after rotation.
 `SSM_FETCH_KEY` is no longer used.
 
-All routes, including HTML, API, and health checks, require Basic Auth.
+All routes, including HTML, API, and health checks, require a session.
+Signing in at `/login` sets a signed, HttpOnly cookie; `/logout` clears it.
 The browser handles credentials without changes to `index.html`. Use HTTPS
 outside localhost. This is a shared POC account with no rate limiter or lockout;
 authentication does not prevent Lambda invocation costs.
