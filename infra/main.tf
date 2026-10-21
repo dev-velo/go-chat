@@ -10,7 +10,7 @@ locals {
 
 module "exchanges_s3_bucket" {
   source  = "terraform-aws-modules/s3-bucket/aws"
-  version = "~> 5.17"
+  version = "5.17.0"
 
   bucket        = local.bucket_name
   force_destroy = true
