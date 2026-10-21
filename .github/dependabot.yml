@@ -1,0 +1,21 @@
+# Pinned action SHAs are unreadable to a human reviewer, so let Dependabot be
+# the thing that notices a new release and proposes the bump.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: gomod
+    directory: /app
+    schedule:
+      interval: weekly
+    groups:
+      aws-sdk:
+        patterns: ["github.com/aws/aws-sdk-go-v2*"]
+
+  - package-ecosystem: docker
+    directory: /app
+    schedule:
+      interval: weekly
