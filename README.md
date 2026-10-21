@@ -130,8 +130,8 @@ Copy `app/.env.example` to `app/.env.local`, keep `STORE_BACKEND=memory`, set
 `APP_USER_NAME` / `APP_USER_PASS`, and pick a provider (`fake` needs no key):
 
 ```sh
-just run            # http://localhost:8080
-cd app && go test ./...
+just run    # http://localhost:8080
+just test
 ```
 
 Details: [application](app/README.md) | [infrastructure](infra/README.md).
