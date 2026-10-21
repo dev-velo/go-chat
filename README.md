@@ -38,9 +38,6 @@ just tf output dev -raw app_user_name
 just tf output dev -raw app_user_pass
 ```
 
-**Current blocker:** the app still needs a Lambda handler adapter before the
-deployed URL can serve requests.
-
 Never commit secrets. Terraform state and saved plans contain managed secrets;
 `-raw` prints credentials in plaintext. Destroy with `just tf destroy` (deletes
 chat history and managed credentials).

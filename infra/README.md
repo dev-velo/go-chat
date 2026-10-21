@@ -69,7 +69,7 @@ Destroy retains Terraform's confirmation; CI can explicitly pass
 `run.sh` holds settings; `entrypoint.sh` builds the Lambda ZIP and runs Terraform.
 Terraform uploads `app/build/bootstrap.zip` directly to Lambda, not the chat
 bucket. Preserve the ZIP and saved plan between separate CI plan/apply jobs.
-The app still needs a Lambda handler adapter before deployment can serve traffic.
+The app handles Function URL requests through the Go Lambda runtime and Gin adapter.
 
 An empty state bucket selects local state at `.state/<environment>/terraform.tfstate`;
 otherwise state uses S3. The script generates an ignored `backend.generated.tf`.

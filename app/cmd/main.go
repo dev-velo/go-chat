@@ -13,6 +13,8 @@ import (
 	"go-chat/app/store"
 	"go-chat/app/web"
 
+	"github.com/aws/aws-lambda-go/lambda"
+	ginadapter "github.com/awslabs/aws-lambda-go-api-proxy/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -45,6 +47,11 @@ func main() {
 	}
 
 	router := newRouter(exchanges, model, cfg.AppUserName, cfg.AppUserPass)
+
+	if os.Getenv("AWS_LAMBDA_RUNTIME_API") != "" {
+		lambda.Start(ginadapter.NewV2(router).ProxyWithContext)
+		return
+	}
 
 	if err := router.Run(":" + cfg.Port); err != nil {
 		panic(err)
