@@ -1,6 +1,6 @@
 module "app_lambda" {
   source  = "terraform-aws-modules/lambda/aws"
-  version = "7.21.1"
+  version = "8.1.0"
 
   architectures              = ["arm64"]
   attach_policy_json         = true
