@@ -10,7 +10,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -35,16 +34,19 @@ const (
 
 // Config is the resolved runtime configuration.
 type Config struct {
-	Port         string // Port is the TCP port the server listens on. Optional.
-	GinMode      string // GinMode is the gin framework mode. Optional.
-	StoreBackend string // StoreBackend is the persistence backend. Required.
-	S3BucketName string
-	S3BucketPath string
-	LLMProvider  string // LLMProvider is the model backend. Required.
-	LLMModel     string // LLMModel is the provider-specific model id. Required.
-	LLMAPIKey    string // LLMAPIKey is the provider-specific API key.
-	SSMKeyName   string // Parameter name used when SSM fetching is enabled.
-	SSMFetchKey  bool   // SSMFetchKey indicates whether to fetch the LLM API key from AWS SSM.
+	Port           string // Port is the TCP port the server listens on. Optional.
+	GinMode        string // GinMode is the gin framework mode. Optional.
+	StoreBackend   string // StoreBackend is the persistence backend. Required.
+	S3BucketName   string
+	S3BucketPath   string
+	LLMProvider    string // LLMProvider is the model backend. Required.
+	LLMModel       string // LLMModel is the provider-specific model id. Required.
+	LLMAPIKey      string // LLMAPIKey is the provider-specific API key.
+	SSMKeyName     string // Parameter name used when SSM fetching is enabled.
+	AppUserName    string
+	AppUserPass    string
+	SSMUserKeyName string
+	SSMPassKeyName string
 }
 
 // Error reports the required variables that were missing. All listed together
@@ -61,10 +63,6 @@ func (e *Error) Error() string {
 // caller must exit rather than start the server.
 func Load() (Config, error) {
 	var l loader
-	fetchKey, err := strconv.ParseBool(l.optional("SSM_FETCH_KEY", "false"))
-	if err != nil {
-		return Config{}, fmt.Errorf("SSM_FETCH_KEY must be a boolean")
-	}
 
 	cfg := Config{
 		Port:         l.optional("PORT", "8080"),
@@ -74,21 +72,24 @@ func Load() (Config, error) {
 		S3BucketPath: l.optional("S3_BUCKET_PATH", ""),
 		LLMProvider:  l.required("LLM_PROVIDER"),
 		LLMModel:     l.required("LLM_MODEL"),
-		LLMAPIKey:    l.optional("LLM_API_KEY", ""),
-		SSMKeyName:   l.optional("SSM_KEY_NAME", ""),
-		SSMFetchKey:  fetchKey,
 	}
 	if cfg.StoreBackend == StoreS3 {
 		cfg.S3BucketName = l.required("S3_BUCKET_NAME")
-	}
-	if cfg.SSMFetchKey {
 		cfg.SSMKeyName = l.required("SSM_KEY_NAME")
-		cfg.LLMAPIKey = ""
-	} else if cfg.LLMAPIKey == "" {
-		l.missing = append(l.missing, "LLM_API_KEY")
+		cfg.SSMUserKeyName = l.required("SSM_USER_KEY_NAME")
+		cfg.SSMPassKeyName = l.required("SSM_PASS_KEY_NAME")
+	} else if cfg.StoreBackend == StoreMemory || cfg.StoreBackend == "" {
+		cfg.LLMAPIKey = l.required("LLM_API_KEY")
+		cfg.AppUserName = l.required("APP_USER_NAME")
+		cfg.AppUserPass = l.required("APP_USER_PASS")
+	} else {
+		return Config{}, fmt.Errorf("unknown STORE_BACKEND %q (want memory or s3)", cfg.StoreBackend)
 	}
 	if len(l.missing) > 0 {
 		return Config{}, &Error{Missing: l.missing}
+	}
+	if strings.Contains(cfg.AppUserName, ":") {
+		return Config{}, fmt.Errorf("APP_USER_NAME must not contain a colon")
 	}
 	return cfg, nil
 }

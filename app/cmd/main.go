@@ -25,7 +25,7 @@ func main() {
 		os.Exit(1)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	err = cfg.ResolveAPIKey(ctx)
+	err = cfg.ResolveSecrets(ctx)
 	cancel()
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
@@ -44,14 +44,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	router := gin.New()
-	router.Use(api.Logging(), api.Recovery())
-	api.RegisterRoutes(router, exchanges, model)
-	web.RegisterRoutes(router)
+	router := newRouter(exchanges, model, cfg.AppUserName, cfg.AppUserPass)
 
 	if err := router.Run(":" + cfg.Port); err != nil {
 		panic(err)
 	}
+
+}
+
+func newRouter(exchanges store.Store, model llm.Client, username, password string) *gin.Engine {
+	router := gin.New()
+	router.Use(api.Logging(), api.Recovery(), api.BasicAuth(username, password))
+	api.RegisterRoutes(router, exchanges, model)
+	web.RegisterRoutes(router)
+	return router
 }
 
 // newStore builds the persistence store based on the config.

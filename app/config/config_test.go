@@ -10,7 +10,7 @@ import (
 func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, key := range []string{
-		"PORT", "GIN_MODE", "STORE_BACKEND", "S3_BUCKET_NAME", "S3_BUCKET_PATH", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "SSM_FETCH_KEY", "SSM_KEY_NAME",
+		"PORT", "GIN_MODE", "STORE_BACKEND", "S3_BUCKET_NAME", "S3_BUCKET_PATH", "LLM_PROVIDER", "LLM_MODEL", "LLM_API_KEY", "SSM_KEY_NAME", "SSM_USER_KEY_NAME", "SSM_PASS_KEY_NAME", "APP_USER_NAME", "APP_USER_PASS",
 	} {
 		t.Setenv(key, "")
 	}
@@ -21,48 +21,54 @@ func clearEnv(t *testing.T) {
 	t.Setenv("LLM_PROVIDER", ProviderFake)
 	t.Setenv("LLM_MODEL", "a-model")
 	t.Setenv("LLM_API_KEY", "sk-test-value")
+	t.Setenv("APP_USER_NAME", "tester")
+	t.Setenv("APP_USER_PASS", "test-password")
+	t.Setenv("SSM_KEY_NAME", "/llm")
+	t.Setenv("SSM_USER_KEY_NAME", "/user")
+	t.Setenv("SSM_PASS_KEY_NAME", "/pass")
 }
 
 func TestLoadAcceptsSSMParameter(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("LLM_API_KEY", "")
-	t.Setenv("SSM_FETCH_KEY", " true ")
+	t.Setenv("STORE_BACKEND", StoreS3)
+	t.Setenv("S3_BUCKET_NAME", "bucket")
 	t.Setenv("SSM_KEY_NAME", " /go-chat/dev/llm-api-key ")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.SSMFetchKey || cfg.LLMAPIKey != "" || cfg.SSMKeyName != "/go-chat/dev/llm-api-key" {
+	if cfg.LLMAPIKey != "" || cfg.AppUserName != "" || cfg.AppUserPass != "" || cfg.SSMKeyName != "/go-chat/dev/llm-api-key" {
 		t.Fatal("expected only the trimmed SSM parameter name")
 	}
 }
 
 func TestLoadSSMOverridesDirectKey(t *testing.T) {
 	clearEnv(t)
-	t.Setenv("SSM_FETCH_KEY", "true")
+	t.Setenv("STORE_BACKEND", StoreS3)
+	t.Setenv("S3_BUCKET_NAME", "bucket")
 	t.Setenv("SSM_KEY_NAME", "/myapp/llm_api_key")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.LLMAPIKey != "" || !cfg.SSMFetchKey {
+	if cfg.LLMAPIKey != "" || cfg.AppUserName != "" || cfg.AppUserPass != "" {
 		t.Fatal("SSM must replace the direct key when enabled")
 	}
 }
 
-func TestLoadSSMDisabledUsesDirectKey(t *testing.T) {
-	for _, flag := range []string{"", "false"} {
+func TestLoadMemoryUsesDirectSecrets(t *testing.T) {
+	for _, missing := range []string{"LLM_API_KEY", "APP_USER_NAME", "APP_USER_PASS"} {
 		clearEnv(t)
-		t.Setenv("SSM_FETCH_KEY", flag)
 		t.Setenv("SSM_KEY_NAME", "/myapp/llm_api_key")
 		cfg, err := Load()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cfg.SSMFetchKey || cfg.LLMAPIKey != "sk-test-value" {
+		if cfg.LLMAPIKey != "sk-test-value" || cfg.AppUserName != "tester" || cfg.AppUserPass != "test-password" {
 			t.Fatal("disabled SSM must use the direct key")
 		}
-		t.Setenv("LLM_API_KEY", "")
+		t.Setenv(missing, "")
 		if _, err := Load(); err == nil {
 			t.Fatal("disabled SSM must require a direct key")
 		}
@@ -71,18 +77,16 @@ func TestLoadSSMDisabledUsesDirectKey(t *testing.T) {
 
 func TestLoadSSMRequiresParameterName(t *testing.T) {
 	clearEnv(t)
-	t.Setenv("SSM_FETCH_KEY", "true")
-	t.Setenv("SSM_KEY_NAME", " \t ")
-	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "SSM_KEY_NAME") {
-		t.Fatal("enabled SSM must require a parameter name")
+	t.Setenv("STORE_BACKEND", StoreS3)
+	t.Setenv("S3_BUCKET_NAME", "bucket")
+	for _, key := range []string{"SSM_KEY_NAME", "SSM_USER_KEY_NAME", "SSM_PASS_KEY_NAME"} {
+		t.Setenv(key, "")
 	}
-}
-
-func TestLoadRejectsInvalidSSMFlag(t *testing.T) {
-	clearEnv(t)
-	t.Setenv("SSM_FETCH_KEY", "invalid")
-	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "SSM_FETCH_KEY") {
-		t.Fatal("invalid SSM flag must fail")
+	_, err := Load()
+	for _, key := range []string{"SSM_KEY_NAME", "SSM_USER_KEY_NAME", "SSM_PASS_KEY_NAME"} {
+		if err == nil || !strings.Contains(err.Error(), key) {
+			t.Fatalf("missing parameter must be reported: %s", key)
+		}
 	}
 }
 

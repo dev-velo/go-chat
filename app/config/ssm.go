@@ -14,38 +14,53 @@ type parameterGetter interface {
 	GetParameter(context.Context, *ssm.GetParameterInput, ...func(*ssm.Options)) (*ssm.GetParameterOutput, error)
 }
 
-// ResolveAPIKey retrieves the secret once at startup using the runtime's AWS credentials.
-// Direct environment configuration needs no AWS access.
-func (c *Config) ResolveAPIKey(ctx context.Context) error {
-	if !c.SSMFetchKey {
-		if c.LLMAPIKey == "" {
-			return fmt.Errorf("LLM API key is not configured")
+// ResolveSecrets loads all remote credentials once at startup. Memory mode
+// needs no AWS access; S3 mode never falls back to environment secrets.
+func (c *Config) ResolveSecrets(ctx context.Context) error {
+	switch c.StoreBackend {
+	case StoreMemory:
+		if c.LLMAPIKey == "" || c.AppUserName == "" || c.AppUserPass == "" {
+			return fmt.Errorf("LLM_API_KEY, APP_USER_NAME and APP_USER_PASS are required")
 		}
 		return nil
+	case StoreS3:
+		c.LLMAPIKey, c.AppUserName, c.AppUserPass = "", "", ""
+	default:
+		return fmt.Errorf("unknown STORE_BACKEND %q", c.StoreBackend)
 	}
-	if c.SSMKeyName == "" {
-		return fmt.Errorf("SSM_KEY_NAME is required when SSM_FETCH_KEY is true")
+	if c.SSMKeyName == "" || c.SSMUserKeyName == "" || c.SSMPassKeyName == "" {
+		return fmt.Errorf("SSM_KEY_NAME, SSM_USER_KEY_NAME and SSM_PASS_KEY_NAME are required for s3")
 	}
-	c.LLMAPIKey = ""
 	cfg, err := awsconfig.LoadDefaultConfig(ctx)
 	if err != nil {
-		return fmt.Errorf("load AWS configuration for LLM API key: %w", err)
+		return fmt.Errorf("load AWS configuration for secrets: %w", err)
 	}
-	return c.resolveAPIKey(ctx, ssm.NewFromConfig(cfg))
+	return c.resolveSecrets(ctx, ssm.NewFromConfig(cfg))
 }
 
-func (c *Config) resolveAPIKey(ctx context.Context, client parameterGetter) error {
-	result, err := client.GetParameter(ctx, &ssm.GetParameterInput{
-		Name:           aws.String(c.SSMKeyName),
-		WithDecryption: aws.Bool(true),
-	})
-	if err != nil {
-		return fmt.Errorf("retrieve LLM API key from SSM: %w", err)
+func (c *Config) resolveSecrets(ctx context.Context, client parameterGetter) error {
+	c.LLMAPIKey, c.AppUserName, c.AppUserPass = "", "", ""
+	values := make([]string, 0, 3)
+	for _, secret := range []struct{ label, name string }{
+		{"LLM API key", c.SSMKeyName},
+		{"app username", c.SSMUserKeyName},
+		{"app password", c.SSMPassKeyName},
+	} {
+		result, err := client.GetParameter(ctx, &ssm.GetParameterInput{
+			Name: aws.String(secret.name), WithDecryption: aws.Bool(true),
+		})
+		if err != nil {
+			return fmt.Errorf("retrieve %s from SSM: %w", secret.label, err)
+		}
+		if result == nil || result.Parameter == nil || result.Parameter.Value == nil ||
+			strings.TrimSpace(*result.Parameter.Value) == "" {
+			return fmt.Errorf("SSM %s parameter has no value", secret.label)
+		}
+		values = append(values, strings.TrimSpace(*result.Parameter.Value))
 	}
-	if result == nil || result.Parameter == nil || result.Parameter.Value == nil ||
-		strings.TrimSpace(*result.Parameter.Value) == "" {
-		return fmt.Errorf("SSM LLM API key parameter has no value")
+	if strings.Contains(values[1], ":") {
+		return fmt.Errorf("SSM app username must not contain a colon")
 	}
-	c.LLMAPIKey = strings.TrimSpace(*result.Parameter.Value)
+	c.LLMAPIKey, c.AppUserName, c.AppUserPass = values[0], values[1], values[2]
 	return nil
 }

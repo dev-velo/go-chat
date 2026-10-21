@@ -10,80 +10,85 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 )
 
-type stubParameterGetter struct {
-	input  *ssm.GetParameterInput
-	output *ssm.GetParameterOutput
-	err    error
-	ctx    context.Context
+type stubParameterGetter func(context.Context, *ssm.GetParameterInput) (*ssm.GetParameterOutput, error)
+
+func (s stubParameterGetter) GetParameter(ctx context.Context, in *ssm.GetParameterInput, _ ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
+	return s(ctx, in)
 }
 
-func (s *stubParameterGetter) GetParameter(ctx context.Context, input *ssm.GetParameterInput, _ ...func(*ssm.Options)) (*ssm.GetParameterOutput, error) {
-	s.input = input
-	s.ctx = ctx
-	return s.output, s.err
-}
-
-func TestResolveAPIKeyFromSSM(t *testing.T) {
-	cfg := Config{SSMKeyName: "/go-chat/dev/llm-api-key"}
-	client := &stubParameterGetter{output: &ssm.GetParameterOutput{
-		Parameter: &types.Parameter{Value: aws.String(" test-key ")},
-	}}
-	ctx := context.Background()
-	if err := cfg.resolveAPIKey(ctx, client); err != nil {
-		t.Fatal(err)
-	}
-	if cfg.LLMAPIKey != "test-key" {
-		t.Fatal("expected resolved and trimmed key")
-	}
-	if aws.ToString(client.input.Name) != cfg.SSMKeyName || !aws.ToBool(client.input.WithDecryption) {
-		t.Fatal("expected requested parameter with decryption enabled")
-	}
-	if client.ctx != ctx {
-		t.Fatal("expected caller context to reach the SDK")
+func TestResolveSecretsSSM(t *testing.T) {
+	cfg := Config{StoreBackend: StoreS3, SSMKeyName: "/llm", SSMUserKeyName: "/user", SSMPassKeyName: "/pass"}
+	values := map[string]string{"/llm": "key", "/user": "user", "/pass": "password"}
+	calls := 0
+	err := cfg.resolveSecrets(context.Background(), stubParameterGetter(func(_ context.Context, in *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+		calls++
+		if !aws.ToBool(in.WithDecryption) {
+			t.Fatal("decryption required")
+		}
+		return &ssm.GetParameterOutput{Parameter: &types.Parameter{Value: aws.String(values[aws.ToString(in.Name)])}}, nil
+	}))
+	if err != nil || calls != 3 || cfg.LLMAPIKey != "key" || cfg.AppUserName != "user" || cfg.AppUserPass != "password" {
+		t.Fatalf("expected all secrets resolved: %v", err)
 	}
 }
 
-func TestResolveAPIKeyRejectsEmptySSMValue(t *testing.T) {
-	for _, output := range []*ssm.GetParameterOutput{
-		nil,
-		{},
-		{Parameter: &types.Parameter{}},
-		{Parameter: &types.Parameter{Value: aws.String(" \t ")}},
-	} {
-		cfg := Config{SSMKeyName: "/go-chat/dev/llm-api-key"}
-		err := cfg.resolveAPIKey(context.Background(), &stubParameterGetter{output: output})
-		if err == nil || cfg.LLMAPIKey != "" {
-			t.Fatal("expected empty SSM value to fail without setting a key")
+func TestResolveSecretsFailsClosed(t *testing.T) {
+	cause := errors.New("access denied")
+	for _, failAt := range []int{1, 2, 3} {
+		for _, empty := range []bool{true, false} {
+			cfg := Config{LLMAPIKey: "fallback", AppUserName: "fallback", AppUserPass: "fallback"}
+			calls := 0
+			err := cfg.resolveSecrets(context.Background(), stubParameterGetter(func(context.Context, *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+				calls++
+				if calls == failAt {
+					if empty {
+						return &ssm.GetParameterOutput{}, nil
+					}
+					return nil, cause
+				}
+				return &ssm.GetParameterOutput{Parameter: &types.Parameter{Value: aws.String("value")}}, nil
+			}))
+			if err == nil || (!empty && !errors.Is(err, cause)) || cfg.LLMAPIKey != "" || cfg.AppUserName != "" || cfg.AppUserPass != "" {
+				t.Fatal("failure must propagate without publishing partial or fallback secrets")
+			}
 		}
 	}
 }
 
-func TestResolveAPIKeyPropagatesSSMError(t *testing.T) {
-	for _, cause := range []error{errors.New("access denied"), context.DeadlineExceeded} {
-		cfg := Config{SSMKeyName: "/go-chat/dev/llm-api-key"}
-		err := cfg.resolveAPIKey(context.Background(), &stubParameterGetter{err: cause})
-		if !errors.Is(err, cause) || cfg.LLMAPIKey != "" {
-			t.Fatal("expected SSM failure to propagate without setting a key")
-		}
-	}
-}
-
-func TestResolveAPIKeyDirectEnvironmentNeedsNoAWS(t *testing.T) {
-	cfg := Config{LLMAPIKey: "local-key", SSMKeyName: "/ignored"}
+func TestResolveSecretsMemoryNeedsNoAWS(t *testing.T) {
+	cfg := Config{StoreBackend: StoreMemory, LLMAPIKey: "key", AppUserName: "user", AppUserPass: "password"}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := cfg.ResolveAPIKey(ctx); err != nil {
+	if err := cfg.ResolveSecrets(ctx); err != nil {
 		t.Fatal(err)
-	}
-	if cfg.LLMAPIKey != "local-key" {
-		t.Fatal("expected local key unchanged")
 	}
 }
 
-func TestResolveAPIKeyRejectsInvalidSources(t *testing.T) {
-	for _, cfg := range []Config{{}, {LLMAPIKey: "local-key", SSMFetchKey: true}} {
-		if err := cfg.ResolveAPIKey(context.Background()); err == nil {
-			t.Fatal("expected invalid key sources to fail")
+func TestResolveSecretsRejectsMissingConfiguration(t *testing.T) {
+	for _, cfg := range []Config{{}, {StoreBackend: StoreMemory}, {StoreBackend: StoreS3}} {
+		if err := cfg.ResolveSecrets(context.Background()); err == nil {
+			t.Fatal("missing configuration must fail")
+		}
+	}
+}
+
+func TestResolveSecretsContextAndInvalidValues(t *testing.T) {
+	for _, value := range []string{" \t ", "invalid:user"} {
+		cfg := Config{SSMKeyName: "/llm", SSMUserKeyName: "/user", SSMPassKeyName: "/pass"}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := cfg.resolveSecrets(ctx, stubParameterGetter(func(got context.Context, in *ssm.GetParameterInput) (*ssm.GetParameterOutput, error) {
+			if got != ctx || got.Err() != context.Canceled {
+				t.Fatal("caller context must reach SDK")
+			}
+			v := "valid"
+			if aws.ToString(in.Name) == "/user" {
+				v = value
+			}
+			return &ssm.GetParameterOutput{Parameter: &types.Parameter{Value: &v}}, nil
+		}))
+		if err == nil || cfg.AppUserName != "" || cfg.AppUserPass != "" || cfg.LLMAPIKey != "" {
+			t.Fatal("invalid values must fail without publishing credentials")
 		}
 	}
 }
