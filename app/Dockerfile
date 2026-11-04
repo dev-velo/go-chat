@@ -3,7 +3,7 @@
 # Build on the host's own architecture and cross-compile to the target, so a
 # multi-arch build never pays for QEMU emulation. Both default to the build
 # host when no platform is requested, so a plain `docker build` is unchanged.
-FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 WORKDIR /src
 
 ARG TARGETOS
